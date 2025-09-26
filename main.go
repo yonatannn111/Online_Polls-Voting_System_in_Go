@@ -57,33 +57,39 @@ func main() {
 	}
 	defer client.Close()
 
-	// 5️⃣ Routes with CORS middleware
-	http.HandleFunc("/createPoll", cors(createPollHandler))
-	http.HandleFunc("/getPolls", cors(getPollsHandler))
-	http.HandleFunc("/vote", cors(voteHandler))
+	// 5️⃣ Setup routes using a ServeMux
+mux := http.NewServeMux()
+mux.HandleFunc("/createPoll", createPollHandler)
+mux.HandleFunc("/getPolls", getPollsHandler)
+mux.HandleFunc("/vote", voteHandler)
 
-	// 6️⃣ Port for Railway or default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+// 6️⃣ Wrap mux with global CORS
+handler := cors(mux)
 
-	fmt.Printf("🚀 Server running on :%s\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+// 7️⃣ Port for Render or default
+port := os.Getenv("PORT")
+if port == "" {
+    port = "8080"
+}
+
+fmt.Printf("🚀 Server running on :%s\n", port)
+log.Fatal(http.ListenAndServe(":"+port, handler))
+
 }
 
 // Simple CORS middleware
-func cors(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
+// Global CORS middleware
+func cors(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+        if r.Method == http.MethodOptions {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
 }
 
 // createPollHandler creates a new poll
