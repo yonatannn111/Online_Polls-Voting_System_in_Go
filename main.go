@@ -18,14 +18,14 @@ import (
 // Global Firestore client
 var client *firestore.Client
 
-// Poll represents a single poll structure
+// Poll represents a single poll
 type Poll struct {
 	ID       string         `json:"id,omitempty"`
 	Question string         `json:"question"`
 	Options  []string       `json:"options"`
 	Votes    map[string]int `json:"votes"`
 }
-
+//  eyJ0eXBlIjoic2VydmljZV9hY2NvdW50IiwicHJvamVjdF9pZCI6Im9ubGluZS1wb2xsLXZvdGluZy1pbi1nbyIsInByaXZhdGVfa2V5X2lkIjoiY2YwNTRkNTU5MmJlNjQ3NWIxZjEwOWZkMTBjZTlhZGVhODRlN2JjNCIsInByaXZhdGVfa2V5IjoiLS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tXG5NSUlFdndJQkFEQU5CZ2txaGtpRzl3MEJBUUVGQUFTQ0JLa3dnZ1NsQWdFQUFvSUJBUURKRVQ3V1doRnE1V00xXG5yK1d3UEk3aXo2NmlXWUVOSnNjRzBvVUF0Rk02TThmOVRoNVpONjE5L0J1dWRuRlJ6K0lONjFtWXd5NUpwMzY3XG5KRk41cDhFV3lRenF6eDIyYUZpVzVrd05XMVQ1dVI1c2JhVUo4dEJ5UzBld2xtS0pSUW1lWHJBWWNqOGRmcTRaXG5Ta0pEL3liZUhkNTB5Uit3c3ZWWFVOZlpGb0JONThOWEd3RjFmUllLRlBXZ01tOU1sa3N2cHVsbU5tLzdCa3JCXG4rTmgvTTdPVFo5Wm1BNE0wcENTZXlhenRsVDdFUDhyYnlIMmVrSElXWExwbXVQVmlQdXhCWEp6OXgxYkhZZWg3XG5LWTlsayt2N2RPSHJ0WVBkL3VjRWFKU2FVcHZld0xRT09BSUs2aXB3czhuWFZBUldTVHRoUDExM1lVQmdyU3luXG51MGRPSGxYSkFnTUJBQUVDZ2dFQUNMRVBKMUx6Wjh5TXNsaHROR1lad3lJNUtWbDNJNnRtZFJ3S2xkSTF1dEZjXG5OczMycitLaFJFM3VvR2NNVlA0SWhwT0M1d0NnOHB3ajlWRUhycjJhc2pKMHRYM0lpZ2NPdFU4MVFHcVBUTkE4XG55WEVmN2tNcDBaY0JmVmV5NEw0MFFUMVVuV25xNG9xRVdpR0VwYzNVejBzNVA1RW1Kb3hGNE1WazMwU0N2VnRRXG55UkgzSVpJSGxIOXVDK0dNOWp3Wnlsc2JjdVBrV3JYZVJXT3VQSzE5c0dEc1RQNVJSMHJjcFJ3cC9ldTF4RG1qXG5BaEg1ZjQ2bVA0QU5neHpyd3JrclRjY2RKYVAydHZyQnJZS3pqbVp6MVF2SmRlT3IvbFJtN0FWQ0gvUVBTUHBnXG5pVzJLMTEzN1lHc0lrYWRtc29YZEpqbGQyYW5Fb0ozZGxJNlYyamdLVlFLQmdRRHZGZ1RTT29UdC9MQVV1bW10XG5lOGxyMElXNTdLb2p0anZ4a3J6alczVHF4NXZYWC9XUlc0bWZSeWNHZE5uTHdURGcybXBrbnJEMUJlWXM5bFhWXG5UVStDaDZKeGIvK1ZEd3VScnJQTmlVcWFseG9qU0JwS1RhNExWWW11VXVkUTJBemZybWVjYVJxVkVKaXgrdFluXG5SRU16a0lIbHFOaXdGZndFNnlZSFRyanJKd0tCZ1FEWFNyQU9Nd0M2Tm9JeWp1UVBvMWQ4N0tYeWVzaEcrU0xRXG41SmtuKzJDWHBtdmcyWW9yaVFkZWxESTZrZUZYQVU0T29RcWtCVjh3bW12TVVTd3lHS1YrUGltWVg2OVRrbTZ0XG5oZ2hTS1hUREJqcmtGQy81VUtvR05NWHlNQmF3OCsvM0YyejVCZk1lbWYzb0xYWEtHZFdnRWUrYzhZbmtrUE5JXG5sejkxUFU0Tmp3S0JnUUR1MGRmUEI1VnhCRS8rNUpaYkxLTnVoc1NOaTlJSUNpaW1qaVVRRm5NYmNuaEJFeUdCXG5LU2EzYTZPWDEzRVhEc3Q4VDdDbkFiMVJnNnNBanEvK2VWTksxNkYwSHFQMmlTak5STzFtQ2hYemhhd2VRZy9BXG4yUWRaV3dCRW1adG1MZW51SlpCcHRMTlE0MXNqcmFQdFpVcWJYMlhodWw5NHhQMFJETExYNmRMZFVRS0JnUUNpXG5WV2E2emlwV1BwT2RtN0RMT2RiV0UzcHRnN2RRRExyNzErTEVDditpV1pJdVVObW1TZ1NNaENIN2w5UFp6dG9VXG5uY2x3TTd5NjRUVTNNbDJveUh6QTNBNXhIblVOQnZUOVVuc2p1SzZaL3pDWW1jQXl0V2YrbGZ4THlZYlNscHp5XG5LMiszdFl6RUhra2RzR21Jb2tJNkdFd2NndVArdkcwMDV4YXFTRGQ2Y1FLQmdRQ21QUXVkSkhQaTgwVXZ1NGdsXG55L1JhN1JmNzV1YjdkR3RmUUZlM204MzZXbnpnUHRNUjR2MmQ2cTRIQjlkS2JPbDFJYnBQbk1PUU1xU2hlS2RiXG5Oa0RybGpyejNoNThOWCtqQ0JmRWI0eFFRbHRMVnlKdGp2U3pzQ0poV1hDbC9xZjAvS05PMFRUTnJNYzNyZjlhXG53aVpZNGhPSE5ldnlJVjZ5Qlg2b1NGWGxxUT09XG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4iLCJjbGllbnRfZW1haWwiOiJmaXJlYmFzZS1hZG1pbnNkay1mYnN2Y0BvbmxpbmUtcG9sbC12b3RpbmctaW4tZ28uaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJjbGllbnRfaWQiOiIxMDY0NjkxOTUwODI2Njc1Nzk0NTQiLCJhdXRoX3VyaSI6Imh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbS9vL29hdXRoMi9hdXRoIiwidG9rZW5fdXJpIjoiaHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4iLCJhdXRoX3Byb3ZpZGVyX3g1MDlfY2VydF91cmwiOiJodHRwczovL3d3dy5nb29nbGVhcGlzLmNvbS9vYXV0aDIvdjEvY2VydHMiLCJjbGllbnRfeDUwOV9jZXJ0X3VybCI6Imh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL3JvYm90L3YxL21ldGFkYXRhL3g1MDkvZmlyZWJhc2UtYWRtaW5zZGstZmJzdmMlNDBvbmxpbmUtcG9sbC12b3RpbmctaW4tZ28uaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJ1bml2ZXJzZV9kb21haW4iOiJnb29nbGVhcGlzLmNvbSJ9DQogIA==
 func main() {
 	// 1️⃣ Decode Firebase credentials from environment variable
 	credsBase64 := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_BASE64")
@@ -43,28 +43,29 @@ func main() {
 		log.Fatalf("Failed to write serviceAccountKey.json: %v", err)
 	}
 
-	// 3️⃣ Initialize Firebase
+	// 3️⃣ Initialize Firebase app
 	ctx := context.Background()
-	sa := option.WithCredentialsFile("serviceAccountKey.json")
-	app, err := firebase.NewApp(ctx, nil, sa)
+	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile("serviceAccountKey.json"))
 	if err != nil {
 		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
 	}
 
+	// 4️⃣ Initialize Firestore client
 	client, err = app.Firestore(ctx)
 	if err != nil {
 		log.Fatalf("🔥 Failed to create Firestore client: %v", err)
 	}
 	defer client.Close()
 
-	// 4️⃣ Routes with CORS enabled
+	// 5️⃣ Routes with CORS middleware
 	http.HandleFunc("/createPoll", cors(createPollHandler))
 	http.HandleFunc("/getPolls", cors(getPollsHandler))
 	http.HandleFunc("/vote", cors(voteHandler))
 
+	// 6️⃣ Port for Railway or default
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // default port if not set by Railway
+		port = "8080"
 	}
 
 	fmt.Printf("🚀 Server running on :%s\n", port)
@@ -163,7 +164,7 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 	docRef := client.Collection("polls").Doc(req.PollID)
 
 	// Transaction to safely increment vote
-	 err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		doc, err := tx.Get(docRef)
 		if err != nil {
 			return err
