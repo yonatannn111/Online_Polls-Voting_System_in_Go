@@ -87,40 +87,45 @@ func cors(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // createPollHandler creates a new poll
+// createPollHandler creates a new poll
 func createPollHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method allowed", http.StatusMethodNotAllowed)
-		return
-	}
+    w.Header().Set("Content-Type", "application/json")
 
-	var poll Poll
-	if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
+    if r.Method != http.MethodPost {
+        http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
+        return
+    }
 
-	if poll.Question == "" || len(poll.Options) == 0 {
-		http.Error(w, "Question and options are required", http.StatusBadRequest)
-		return
-	}
+    var poll Poll
+    if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
+        http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+        return
+    }
 
-	// Initialize votes
-	poll.Votes = make(map[string]int)
-	for _, option := range poll.Options {
-		poll.Votes[option] = 0
-	}
+    if poll.Question == "" || len(poll.Options) < 2 {
+        http.Error(w, `{"error":"question and at least 2 options required"}`, http.StatusBadRequest)
+        return
+    }
 
-	ctx := context.Background()
-	docRef, _, err := client.Collection("polls").Add(ctx, poll)
-	if err != nil {
-		http.Error(w, "Failed to create poll", http.StatusInternalServerError)
-		return
-	}
+    // Initialize votes
+    poll.Votes = make(map[string]int)
+    for _, option := range poll.Options {
+        poll.Votes[option] = 0
+    }
 
-	poll.ID = docRef.ID
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(poll)
+    ctx := context.Background()
+    docRef, _, err := client.Collection("polls").Add(ctx, poll)
+    if err != nil {
+        http.Error(w, `{"error":"failed to create poll"}`, http.StatusInternalServerError)
+        return
+    }
+
+    poll.ID = docRef.ID
+    if err := json.NewEncoder(w).Encode(poll); err != nil {
+        http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+    }
 }
+
 
 // getPollsHandler returns all polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +202,7 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "✅ Vote recorded successfully")
+	w.Header().Set("Content-Type", "application/json")
+json.NewEncoder(w).Encode(map[string]string{"message": "vote recorded successfully"})
+
 }
