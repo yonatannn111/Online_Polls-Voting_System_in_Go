@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	firebase "firebase.google.com/go/v4"
 	"cloud.google.com/go/firestore"
@@ -15,10 +18,34 @@ import (
 // Global Firestore client
 var client *firestore.Client
 
+// Poll represents a single poll structure
+type Poll struct {
+	ID       string         `json:"id,omitempty"`
+	Question string         `json:"question"`
+	Options  []string       `json:"options"`
+	Votes    map[string]int `json:"votes"`
+}
+
 func main() {
-	// Initialize Firebase
+	// 1️⃣ Decode Firebase credentials from environment variable
+	credsBase64 := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_BASE64")
+	if credsBase64 == "" {
+		log.Fatal("⚠️ GOOGLE_APPLICATION_CREDENTIALS_BASE64 not set")
+	}
+	creds, err := base64.StdEncoding.DecodeString(credsBase64)
+	if err != nil {
+		log.Fatalf("Failed to decode Firebase credentials: %v", err)
+	}
+
+	// 2️⃣ Write the decoded JSON to a local file
+	err = ioutil.WriteFile("serviceAccountKey.json", creds, 0644)
+	if err != nil {
+		log.Fatalf("Failed to write serviceAccountKey.json: %v", err)
+	}
+
+	// 3️⃣ Initialize Firebase
 	ctx := context.Background()
-	sa := option.WithCredentialsFile("serviceAccountKey.json") // <- put your downloaded JSON here
+	sa := option.WithCredentialsFile("serviceAccountKey.json")
 	app, err := firebase.NewApp(ctx, nil, sa)
 	if err != nil {
 		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
@@ -30,21 +57,32 @@ func main() {
 	}
 	defer client.Close()
 
-	// Routes
-	http.HandleFunc("/createPoll", createPollHandler)
-	http.HandleFunc("/getPolls", getPollsHandler)
-	http.HandleFunc("/vote", voteHandler)
+	// 4️⃣ Routes with CORS enabled
+	http.HandleFunc("/createPoll", cors(createPollHandler))
+	http.HandleFunc("/getPolls", cors(getPollsHandler))
+	http.HandleFunc("/vote", cors(voteHandler))
 
-	fmt.Println("🚀 Server running on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // default port if not set by Railway
+	}
+
+	fmt.Printf("🚀 Server running on :%s\n", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-// Poll represents a single poll structure
-type Poll struct {
-	ID       string         `json:"id,omitempty"`
-	Question string         `json:"question"`
-	Options  []string       `json:"options"`
-	Votes    map[string]int `json:"votes"`
+// Simple CORS middleware
+func cors(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
 }
 
 // createPollHandler creates a new poll
@@ -95,9 +133,7 @@ func getPollsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		var p Poll
-		if err := doc.DataTo(&p); err != nil {
-			continue
-		}
+		doc.DataTo(&p)
 		p.ID = doc.Ref.ID
 		polls = append(polls, p)
 	}
@@ -127,17 +163,15 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 	docRef := client.Collection("polls").Doc(req.PollID)
 
 	// Transaction to safely increment vote
-	err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	 err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		doc, err := tx.Get(docRef)
 		if err != nil {
 			return err
 		}
-	
-		// Read votes map as map[string]int
+
 		votesInterface := doc.Data()["votes"].(map[string]interface{})
 		votes := make(map[string]int)
 		for k, v := range votesInterface {
-			// Firestore stores numbers as int64 or float64
 			switch val := v.(type) {
 			case int64:
 				votes[k] = int(val)
@@ -147,16 +181,15 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 				votes[k] = 0
 			}
 		}
-	
+
 		if _, ok := votes[req.Option]; !ok {
 			return fmt.Errorf("option does not exist")
 		}
-	
+
 		votes[req.Option]++
-	
+
 		return tx.Set(docRef, map[string]interface{}{"votes": votes}, firestore.MergeAll)
 	})
-	
 
 	if err != nil {
 		http.Error(w, "Failed to vote: "+err.Error(), http.StatusBadRequest)
