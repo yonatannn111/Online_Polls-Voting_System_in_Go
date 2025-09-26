@@ -113,11 +113,7 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	docRef, _, err := client.Collection("polls").Add(ctx, poll)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-    		"error": "Failed to create poll",
-})
+		http.Error(w, "Failed to create poll", http.StatusInternalServerError)
 		return
 	}
 
