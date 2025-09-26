@@ -88,6 +88,7 @@ func cors(next http.HandlerFunc) http.HandlerFunc {
 
 // createPollHandler creates a new poll
 // createPollHandler creates a new poll
+// createPollHandler creates a new poll
 func createPollHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
 
@@ -114,14 +115,20 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     ctx := context.Background()
-    docRef, _, err := client.Collection("polls").Add(ctx, poll)
+    docRef, _, err := client.Collection("polls").Add(ctx, map[string]interface{}{
+        "question": poll.Question,
+        "options":  poll.Options,
+        "votes":    poll.Votes,
+    })
     if err != nil {
+        log.Printf("🔥 Firestore add error: %v", err) // 👈 log the real error
         http.Error(w, `{"error":"failed to create poll"}`, http.StatusInternalServerError)
         return
     }
 
     poll.ID = docRef.ID
     if err := json.NewEncoder(w).Encode(poll); err != nil {
+        log.Printf("🔥 JSON encode error: %v", err)
         http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
     }
 }
