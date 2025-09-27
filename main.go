@@ -25,36 +25,34 @@ type Poll struct {
 }
 
 func main() {
-	// Read service account JSON from environment variable
-	credsJSON := os.Getenv("GOOGLE_CREDENTIALS")
-	if credsJSON == "" {
+	// Read service account JSON from env var
+	credsStr := os.Getenv("GOOGLE_CREDENTIALS")
+	if credsStr == "" {
 		log.Fatal("🔥 GOOGLE_CREDENTIALS environment variable not set")
 	}
 
-	// Initialize Firebase app
 	ctx := context.Background()
-	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON([]byte(credsJSON)))
+	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON([]byte(credsStr)))
 	if err != nil {
 		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
 	}
 
-	// Initialize Firestore client
 	client, err = app.Firestore(ctx)
 	if err != nil {
 		log.Fatalf("🔥 Failed to create Firestore client: %v", err)
 	}
 	defer client.Close()
 
-	// Setup routes using ServeMux
+	// Setup routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/createPoll", createPollHandler)
 	mux.HandleFunc("/getPolls", getPollsHandler)
 	mux.HandleFunc("/vote", voteHandler)
 
-	// Wrap mux with global CORS
+	// Wrap with global CORS
 	handler := cors(mux)
 
-	// Port for Render or default
+	// Port
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -64,7 +62,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
 
-// CORS middleware for http.Handler
+// CORS middleware
 func cors(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -98,7 +96,7 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Initialize votes map
+	// Initialize votes
 	poll.Votes = make(map[string]int)
 	for _, opt := range poll.Options {
 		poll.Votes[opt] = 0
@@ -116,32 +114,14 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the full poll back from Firestore
-	docSnap, err := docRef.Get(ctx)
-	if err != nil {
-		log.Printf("🔥 Firestore fetch error: %v", err)
-		http.Error(w, `{"error":"failed to fetch poll"}`, http.StatusInternalServerError)
-		return
-	}
-
-	var fullPoll Poll
-	if err := docSnap.DataTo(&fullPoll); err != nil {
-		log.Printf("🔥 Firestore DataTo error: %v", err)
-		http.Error(w, `{"error":"failed to decode poll data"}`, http.StatusInternalServerError)
-		return
-	}
-
-	// Make sure ID is set
-	fullPoll.ID = docRef.ID
-
-	// Respond with the full poll object
-	if err := json.NewEncoder(w).Encode(fullPoll); err != nil {
+	// ✅ Return the full poll object (use local poll struct, no extra Firestore fetch)
+	poll.ID = docRef.ID
+	if err := json.NewEncoder(w).Encode(poll); err != nil {
 		log.Printf("🔥 JSON encode error: %v", err)
 		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 		return
 	}
 }
-
 
 // getPollsHandler returns all polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
