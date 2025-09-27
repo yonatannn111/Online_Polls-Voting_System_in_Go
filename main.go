@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -37,25 +36,29 @@ func main() {
 		log.Fatalf("Failed to decode Firebase credentials: %v", err)
 	}
 
-	// Write decoded JSON to a local file
-	err = ioutil.WriteFile("serviceAccountKey.json", creds, 0644)
-	if err != nil {
-		log.Fatalf("Failed to write serviceAccountKey.json: %v", err)
-	}
+	// Read service account JSON from env var
+// Read JSON service account from environment
+credsStr := os.Getenv("GOOGLE_CREDENTIALS")
+if credsStr == "" {
+    log.Fatal("🔥 GOOGLE_CREDENTIALS environment variable not set")
+}
 
-	// Initialize Firebase app
-	ctx := context.Background()
-	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile("serviceAccountKey.json"))
-	if err != nil {
-		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
-	}
+// Convert to []byte
+creds = []byte(credsStr)
 
-	// Initialize Firestore client
-	client, err = app.Firestore(ctx)
-	if err != nil {
-		log.Fatalf("🔥 Failed to create Firestore client: %v", err)
-	}
-	defer client.Close()
+ctx := context.Background()
+app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON(creds))
+if err != nil {
+    log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
+}
+
+client, err = app.Firestore(ctx)
+if err != nil {
+    log.Fatalf("🔥 Failed to create Firestore client: %v", err)
+}
+defer client.Close()
+
+
 
 	// Setup routes using ServeMux
 	mux := http.NewServeMux()
