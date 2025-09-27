@@ -27,7 +27,7 @@ type Poll struct {
 }
 
 func main() {
-	// 1️⃣ Decode Firebase credentials from environment variable
+	// Decode Firebase credentials from environment variable
 	credsBase64 := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_BASE64")
 	if credsBase64 == "" {
 		log.Fatal("⚠️ GOOGLE_APPLICATION_CREDENTIALS_BASE64 not set")
@@ -37,47 +37,45 @@ func main() {
 		log.Fatalf("Failed to decode Firebase credentials: %v", err)
 	}
 
-	// 2️⃣ Write the decoded JSON to a local file
+	// Write decoded JSON to a local file
 	err = ioutil.WriteFile("serviceAccountKey.json", creds, 0644)
 	if err != nil {
 		log.Fatalf("Failed to write serviceAccountKey.json: %v", err)
 	}
 
-	// 3️⃣ Initialize Firebase app
+	// Initialize Firebase app
 	ctx := context.Background()
 	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile("serviceAccountKey.json"))
 	if err != nil {
 		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
 	}
 
-	// 4️⃣ Initialize Firestore client
+	// Initialize Firestore client
 	client, err = app.Firestore(ctx)
 	if err != nil {
 		log.Fatalf("🔥 Failed to create Firestore client: %v", err)
 	}
 	defer client.Close()
 
-	// 5️⃣ Setup routes using a ServeMux
-mux := http.NewServeMux()
-mux.HandleFunc("/createPoll", createPollHandler)
-mux.HandleFunc("/getPolls", getPollsHandler)
-mux.HandleFunc("/vote", voteHandler)
+	// Setup routes using ServeMux
+	mux := http.NewServeMux()
+	mux.HandleFunc("/createPoll", createPollHandler)
+	mux.HandleFunc("/getPolls", getPollsHandler)
+	mux.HandleFunc("/vote", voteHandler)
 
-// 6️⃣ Wrap mux with global CORS
-handler := cors(mux)
+	// Wrap mux with global CORS
+	handler := cors(mux)
 
-// 7️⃣ Port for Render or default
-port := os.Getenv("PORT")
-if port == "" {
-    port = "8080"
+	// Port for Render or default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("🚀 Server running on :%s\n", port)
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
 
-fmt.Printf("🚀 Server running on :%s\n", port)
-log.Fatal(http.ListenAndServe(":"+port, handler))
-
-}
-
-// Simple CORS middleware
 // CORS middleware for http.Handler
 func cors(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,54 +90,59 @@ func cors(h http.Handler) http.Handler {
 	})
 }
 
-
-// createPollHandler creates a new poll
-// createPollHandler creates a new poll
 // createPollHandler creates a new poll
 func createPollHandler(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 
-    if r.Method != http.MethodPost {
-        http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
 
-    var poll Poll
-    if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
-        http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
-        return
-    }
+	var poll Poll
+	if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
+		log.Printf("🔥 JSON decode error: %v", err)
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
 
-    if poll.Question == "" || len(poll.Options) < 2 {
-        http.Error(w, `{"error":"question and at least 2 options required"}`, http.StatusBadRequest)
-        return
-    }
+	// Validate question and options
+	if poll.Question == "" || len(poll.Options) < 2 {
+		log.Printf("🔥 Missing question or options: %+v", poll)
+		http.Error(w, `{"error":"question and at least 2 options required"}`, http.StatusBadRequest)
+		return
+	}
 
-    // Initialize votes
-    poll.Votes = make(map[string]int)
-    for _, option := range poll.Options {
-        poll.Votes[option] = 0
-    }
+	// Initialize votes map
+	poll.Votes = make(map[string]int)
+	for _, option := range poll.Options {
+		if option == "" {
+			log.Printf("🔥 Empty option detected")
+			http.Error(w, `{"error":"options cannot be empty"}`, http.StatusBadRequest)
+			return
+		}
+		poll.Votes[option] = 0
+	}
 
-    ctx := context.Background()
-    docRef, _, err := client.Collection("polls").Add(ctx, map[string]interface{}{
-        "question": poll.Question,
-        "options":  poll.Options,
-        "votes":    poll.Votes,
-    })
-    if err != nil {
-        log.Printf("🔥 Firestore add error: %v", err) // 👈 log the real error
-        http.Error(w, `{"error":"failed to create poll"}`, http.StatusInternalServerError)
-        return
-    }
+	// Add to Firestore
+	ctx := context.Background()
+	docRef, _, err := client.Collection("polls").Add(ctx, map[string]interface{}{
+		"question": poll.Question,
+		"options":  poll.Options,
+		"votes":    poll.Votes,
+	})
+	if err != nil {
+		log.Printf("🔥 Firestore add error: %v", err)
+		http.Error(w, `{"error":"failed to create poll"}`, http.StatusInternalServerError)
+		return
+	}
 
-    poll.ID = docRef.ID
-    if err := json.NewEncoder(w).Encode(poll); err != nil {
-        log.Printf("🔥 JSON encode error: %v", err)
-        http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-    }
+	poll.ID = docRef.ID
+	if err := json.NewEncoder(w).Encode(poll); err != nil {
+		log.Printf("🔥 JSON encode error: %v", err)
+		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+	}
 }
-
 
 // getPollsHandler returns all polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +220,5 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-json.NewEncoder(w).Encode(map[string]string{"message": "vote recorded successfully"})
-
+	json.NewEncoder(w).Encode(map[string]string{"message": "vote recorded successfully"})
 }
