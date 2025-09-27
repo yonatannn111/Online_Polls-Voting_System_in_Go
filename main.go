@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -26,39 +25,25 @@ type Poll struct {
 }
 
 func main() {
-	// Decode Firebase credentials from environment variable
-	credsBase64 := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_BASE64")
-	if credsBase64 == "" {
-		log.Fatal("⚠️ GOOGLE_APPLICATION_CREDENTIALS_BASE64 not set")
+	// Read service account JSON from environment variable
+	credsJSON := os.Getenv("GOOGLE_CREDENTIALS")
+	if credsJSON == "" {
+		log.Fatal("🔥 GOOGLE_CREDENTIALS environment variable not set")
 	}
-	creds, err := base64.StdEncoding.DecodeString(credsBase64)
+
+	// Initialize Firebase app
+	ctx := context.Background()
+	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON([]byte(credsJSON)))
 	if err != nil {
-		log.Fatalf("Failed to decode Firebase credentials: %v", err)
+		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
 	}
 
-	// Read service account JSON from env var
-// Read JSON service account from environment
-credsStr := os.Getenv("GOOGLE_CREDENTIALS")
-if credsStr == "" {
-    log.Fatal("🔥 GOOGLE_CREDENTIALS environment variable not set")
-}
-
-// Convert to []byte
-creds = []byte(credsStr)
-
-ctx := context.Background()
-app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON(creds))
-if err != nil {
-    log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
-}
-
-client, err = app.Firestore(ctx)
-if err != nil {
-    log.Fatalf("🔥 Failed to create Firestore client: %v", err)
-}
-defer client.Close()
-
-
+	// Initialize Firestore client
+	client, err = app.Firestore(ctx)
+	if err != nil {
+		log.Fatalf("🔥 Failed to create Firestore client: %v", err)
+	}
+	defer client.Close()
 
 	// Setup routes using ServeMux
 	mux := http.NewServeMux()
@@ -95,53 +80,50 @@ func cors(h http.Handler) http.Handler {
 
 // createPollHandler creates a new poll
 func createPollHandler(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 
-    if r.Method != http.MethodPost {
-        http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
 
-    var poll Poll
-    if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
-        http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
-        return
-    }
+	var poll Poll
+	if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
 
-    if poll.Question == "" || len(poll.Options) < 2 {
-        http.Error(w, `{"error":"question and at least 2 options required"}`, http.StatusBadRequest)
-        return
-    }
+	if poll.Question == "" || len(poll.Options) < 2 {
+		http.Error(w, `{"error":"question and at least 2 options required"}`, http.StatusBadRequest)
+		return
+	}
 
-    // Initialize votes
-    poll.Votes = make(map[string]int)
-    for _, option := range poll.Options {
-        poll.Votes[option] = 0
-    }
+	// Initialize votes
+	poll.Votes = make(map[string]int)
+	for _, option := range poll.Options {
+		poll.Votes[option] = 0
+	}
 
-    ctx := context.Background()
-    docRef, _, err := client.Collection("polls").Add(ctx, map[string]interface{}{
-        "question": poll.Question,
-        "options":  poll.Options,
-        "votes":    poll.Votes,
-    })
-    if err != nil {
-        log.Printf("🔥 Firestore add error: %v", err)
-        http.Error(w, `{"error":"failed to create poll"}`, http.StatusInternalServerError)
-        return
-    }
+	ctx := context.Background()
+	docRef, _, err := client.Collection("polls").Add(ctx, map[string]interface{}{
+		"question": poll.Question,
+		"options":  poll.Options,
+		"votes":    poll.Votes,
+	})
+	if err != nil {
+		log.Printf("🔥 Firestore add error: %v", err)
+		http.Error(w, `{"error":"failed to create poll"}`, http.StatusInternalServerError)
+		return
+	}
 
-    // ✅ Return the full poll object including ID
-    poll.ID = docRef.ID
-
-    // Respond with JSON containing question, options, votes, and ID
-    if err := json.NewEncoder(w).Encode(poll); err != nil {
-        log.Printf("🔥 JSON encode error: %v", err)
-        http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-        return
-    }
+	// Return the full poll object including ID
+	poll.ID = docRef.ID
+	if err := json.NewEncoder(w).Encode(poll); err != nil {
+		log.Printf("🔥 JSON encode error: %v", err)
+		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+		return
+	}
 }
-
 
 // getPollsHandler returns all polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
@@ -209,7 +191,6 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		votes[req.Option]++
-
 		return tx.Set(docRef, map[string]interface{}{"votes": votes}, firestore.MergeAll)
 	})
 
