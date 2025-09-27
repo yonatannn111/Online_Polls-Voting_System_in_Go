@@ -98,10 +98,10 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Initialize votes
+	// Initialize votes map
 	poll.Votes = make(map[string]int)
-	for _, option := range poll.Options {
-		poll.Votes[option] = 0
+	for _, opt := range poll.Options {
+		poll.Votes[opt] = 0
 	}
 
 	ctx := context.Background()
@@ -116,14 +116,32 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return the full poll object including ID
-	poll.ID = docRef.ID
-	if err := json.NewEncoder(w).Encode(poll); err != nil {
+	// Fetch the full poll back from Firestore
+	docSnap, err := docRef.Get(ctx)
+	if err != nil {
+		log.Printf("🔥 Firestore fetch error: %v", err)
+		http.Error(w, `{"error":"failed to fetch poll"}`, http.StatusInternalServerError)
+		return
+	}
+
+	var fullPoll Poll
+	if err := docSnap.DataTo(&fullPoll); err != nil {
+		log.Printf("🔥 Firestore DataTo error: %v", err)
+		http.Error(w, `{"error":"failed to decode poll data"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Make sure ID is set
+	fullPoll.ID = docRef.ID
+
+	// Respond with the full poll object
+	if err := json.NewEncoder(w).Encode(fullPoll); err != nil {
 		log.Printf("🔥 JSON encode error: %v", err)
 		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 		return
 	}
 }
+
 
 // getPollsHandler returns all polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
