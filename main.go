@@ -200,3 +200,34 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "vote recorded successfully"})
 }
+func deletePollHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Only DELETE method allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		PollID string `json:"poll_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	docRef := client.Collection("polls").Doc(req.PollID)
+	_, err := docRef.Get(ctx)
+	if err != nil {
+		http.Error(w, "Poll not found", http.StatusNotFound)
+		return
+	}
+
+	_, err = docRef.Delete(ctx)
+	if err != nil {
+		http.Error(w, "Failed to delete poll", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Poll deleted successfully"})
+}

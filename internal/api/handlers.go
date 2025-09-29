@@ -21,7 +21,7 @@ func (a *App) Firestore(ctx context.Context) (any, error) {
 	panic("unimplemented")
 }
 
-// CreatePollHandler handles poll creation
+// ✅ CreatePollHandler handles poll creation
 func (a *App) CreatePollHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Question string   `json:"question"`
@@ -40,7 +40,7 @@ func (a *App) CreatePollHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Generate unique ID
 	rand.Seed(time.Now().UnixNano())
-	id := generateID(6)
+	id := generateID(8)
 
 	votes := make(map[string]int)
 	for _, opt := range req.Options {
@@ -54,11 +54,16 @@ func (a *App) CreatePollHandler(w http.ResponseWriter, r *http.Request) {
 		Votes:    votes,
 	}
 
-	a.Store.CreatePoll(poll)
+	// Save poll in store
+	if err := a.Store.CreatePoll(poll); err != nil {
+		utils.JSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+
 	utils.JSON(w, http.StatusCreated, poll)
 }
 
-// GetPollHandler returns poll details
+// ✅ GetPollHandler returns poll details
 func (a *App) GetPollHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	poll, err := a.Store.GetPoll(id)
@@ -69,7 +74,7 @@ func (a *App) GetPollHandler(w http.ResponseWriter, r *http.Request) {
 	utils.JSON(w, http.StatusOK, poll)
 }
 
-// VoteHandler allows voting
+// ✅ VoteHandler allows voting
 func (a *App) VoteHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -90,13 +95,25 @@ func (a *App) VoteHandler(w http.ResponseWriter, r *http.Request) {
 	utils.JSON(w, http.StatusOK, map[string]string{"message": "vote recorded"})
 }
 
-// ListPollsHandler returns all polls
+// ✅ ListPollsHandler returns all polls
 func (a *App) ListPollsHandler(w http.ResponseWriter, r *http.Request) {
 	polls := a.Store.ListPolls()
 	utils.JSON(w, http.StatusOK, polls)
 }
 
-// Generate ID
+// ✅ DeletePollHandler deletes a poll
+func (a *App) DeletePollHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if err := a.Store.DeletePoll(id); err != nil {
+		utils.JSON(w, http.StatusNotFound, map[string]string{"error": "poll not found"})
+		return
+	}
+
+	utils.JSON(w, http.StatusOK, map[string]string{"message": "poll deleted"})
+}
+
+// Generate unique ID
 func generateID(n int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, n)

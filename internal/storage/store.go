@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/yonatannn111/Online_Polls-Voting_System_in_Go/internal/models"
@@ -17,11 +18,17 @@ func NewStore() *Store {
 	return &Store{polls: make(map[string]*models.Poll)}
 }
 
-// CreatePoll adds a new poll
-func (s *Store) CreatePoll(poll *models.Poll) {
+// CreatePoll adds a new poll, returns error if duplicate ID
+func (s *Store) CreatePoll(poll *models.Poll) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if _, exists := s.polls[poll.ID]; exists {
+		return fmt.Errorf("poll with ID %s already exists", poll.ID)
+	}
+
 	s.polls[poll.ID] = poll
+	return nil
 }
 
 // GetPoll returns a poll by ID
@@ -61,4 +68,15 @@ func (s *Store) ListPolls() []*models.Poll {
 		list = append(list, p)
 	}
 	return list
+}
+
+// DeletePoll deletes a poll by ID
+func (s *Store) DeletePoll(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.polls[id]; !exists {
+		return errors.New("poll not found")
+	}
+	delete(s.polls, id)
+	return nil
 }
