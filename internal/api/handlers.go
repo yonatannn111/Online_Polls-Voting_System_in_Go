@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"math/rand"
 	"net/http"
-	"time"
+	
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yonatannn111/Online_Polls-Voting_System_in_Go/internal/models"
@@ -22,6 +22,7 @@ func (a *App) Firestore(ctx context.Context) (any, error) {
 }
 
 // ✅ CreatePollHandler handles poll creation
+// CreatePollHandler handles poll creation
 func (a *App) CreatePollHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Question string   `json:"question"`
@@ -39,7 +40,6 @@ func (a *App) CreatePollHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate unique ID
-	rand.Seed(time.Now().UnixNano())
 	id := generateID(8)
 
 	votes := make(map[string]int)
@@ -56,12 +56,14 @@ func (a *App) CreatePollHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Save poll in store
 	if err := a.Store.CreatePoll(poll); err != nil {
+		// 🔥 Show the actual error instead of generic
 		utils.JSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
 
 	utils.JSON(w, http.StatusCreated, poll)
 }
+
 
 // ✅ GetPollHandler returns poll details
 func (a *App) GetPollHandler(w http.ResponseWriter, r *http.Request) {
