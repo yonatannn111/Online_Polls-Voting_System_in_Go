@@ -45,7 +45,7 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/createPoll", createPollHandler)
+	mux.HandleFunc("/polls", createPollHandler)
 	mux.HandleFunc("/getPolls", getPollsHandler)
 	mux.HandleFunc("/vote", voteHandler)
 
