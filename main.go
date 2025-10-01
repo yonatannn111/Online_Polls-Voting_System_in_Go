@@ -25,6 +25,7 @@ type Poll struct {
 }
 
 func main() {
+	
 	// Read service account JSON from env var
 	credsStr := os.Getenv("GOOGLE_CREDENTIALS")
 	if credsStr == "" {
