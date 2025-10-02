@@ -25,7 +25,6 @@ type Poll struct {
 }
 
 func main() {
-	
 	// Read service account JSON from env var
 	credsStr := os.Getenv("GOOGLE_CREDENTIALS")
 	if credsStr == "" {
@@ -46,9 +45,10 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/polls", createPollHandler)
-	mux.HandleFunc("/getPolls", getPollsHandler)
-	mux.HandleFunc("/vote", voteHandler)
+	mux.HandleFunc("/polls", createPollHandler)        // POST
+	mux.HandleFunc("/getPolls", getPollsHandler)      // GET
+	mux.HandleFunc("/vote", voteHandler)              // POST
+	mux.HandleFunc("/deletePoll", deletePollHandler)  // DELETE
 
 	// Wrap with global CORS
 	handler := cors(mux)
@@ -67,7 +67,7 @@ func main() {
 func cors(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
@@ -79,13 +79,12 @@ func cors(h http.Handler) http.Handler {
 
 // createPollHandler creates a new poll
 func createPollHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	var poll Poll
 	if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
@@ -115,7 +114,6 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Return the full poll object (use local poll struct, no extra Firestore fetch)
 	poll.ID = docRef.ID
 	if err := json.NewEncoder(w).Encode(poll); err != nil {
 		log.Printf("🔥 JSON encode error: %v", err)
@@ -126,6 +124,7 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 
 // getPollsHandler returns all polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	ctx := context.Background()
 	iter := client.Collection("polls").Documents(ctx)
 
@@ -141,7 +140,6 @@ func getPollsHandler(w http.ResponseWriter, r *http.Request) {
 		polls = append(polls, p)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(polls)
 }
 
@@ -152,6 +150,7 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	var req struct {
 		PollID string `json:"poll_id"`
 		Option string `json:"option"`
@@ -198,15 +197,17 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "vote recorded successfully"})
 }
+
+// deletePollHandler deletes a poll
 func deletePollHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		http.Error(w, "Only DELETE method allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	var req struct {
 		PollID string `json:"poll_id"`
 	}
@@ -229,6 +230,5 @@ func deletePollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Poll deleted successfully"})
 }
