@@ -25,50 +25,53 @@ type Poll struct {
 }
 
 func main() {
-	// Read service account JSON from env var
+	ctx := context.Background()
+
+	// ✅ Initialize Firebase app
 	credsStr := os.Getenv("GOOGLE_CREDENTIALS")
 	if credsStr == "" {
 		log.Fatal("🔥 GOOGLE_CREDENTIALS environment variable not set")
 	}
 
-	ctx := context.Background()
 	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON([]byte(credsStr)))
 	if err != nil {
-		log.Fatalf("🔥 Failed to initialize Firebase: %v", err)
+		log.Fatalf("🔥 Failed to initialize Firebase app: %v", err)
 	}
 
+	// ✅ Assign global Firestore client (no shadowing)
 	client, err = app.Firestore(ctx)
 	if err != nil {
-		log.Fatalf("🔥 Failed to create Firestore client: %v", err)
+		log.Fatalf("🔥 Failed to connect Firestore: %v", err)
 	}
 	defer client.Close()
 
-	// Setup routes
+	// ✅ Register routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/polls", createPollHandler)        // POST
-	mux.HandleFunc("/getPolls", getPollsHandler)      // GET
-	mux.HandleFunc("/vote", voteHandler)              // POST
-	mux.HandleFunc("/deletePoll", deletePollHandler)  // DELETE
+	mux.HandleFunc("/polls", createPollHandler)
+	mux.HandleFunc("/getPolls", getPollsHandler)
+	mux.HandleFunc("/vote", voteHandler)
+	mux.HandleFunc("/deletePoll", deletePollHandler)
 
-	// Wrap with global CORS
+	// ✅ Wrap routes with CORS middleware
 	handler := cors(mux)
 
-	// Port
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	fmt.Printf("🚀 Server running on :%s\n", port)
+	fmt.Printf("🚀 Server running on port %s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
 
-// CORS middleware
+// ✅ Universal CORS Middleware
 func cors(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173") // or "*" for all
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight request
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -77,14 +80,20 @@ func cors(h http.Handler) http.Handler {
 	})
 }
 
-// createPollHandler creates a new poll
+// ✅ Create Poll Handler
 func createPollHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"error":"only POST method allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	var poll Poll
 	if err := json.NewDecoder(r.Body).Decode(&poll); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
@@ -115,16 +124,13 @@ func createPollHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	poll.ID = docRef.ID
-	if err := json.NewEncoder(w).Encode(poll); err != nil {
-		log.Printf("🔥 JSON encode error: %v", err)
-		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-		return
-	}
+	json.NewEncoder(w).Encode(poll)
 }
 
-// getPollsHandler returns all polls
+// ✅ Get All Polls
 func getPollsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
 	ctx := context.Background()
 	iter := client.Collection("polls").Documents(ctx)
 
@@ -143,19 +149,19 @@ func getPollsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(polls)
 }
 
-// voteHandler allows voting for a poll option
+// ✅ Vote Handler
 func voteHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method allowed", http.StatusMethodNotAllowed)
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	var req struct {
 		PollID string `json:"poll_id"`
 		Option string `json:"option"`
 	}
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -164,7 +170,6 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	docRef := client.Collection("polls").Doc(req.PollID)
 
-	// Transaction to safely increment vote
 	err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		doc, err := tx.Get(docRef)
 		if err != nil {
@@ -179,8 +184,6 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 				votes[k] = int(val)
 			case float64:
 				votes[k] = int(val)
-			default:
-				votes[k] = 0
 			}
 		}
 
@@ -197,17 +200,18 @@ func voteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"message": "vote recorded successfully"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "Vote recorded successfully"})
 }
 
-// deletePollHandler deletes a poll
+// ✅ Delete Poll
 func deletePollHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Only DELETE method allowed", http.StatusMethodNotAllowed)
+		http.Error(w, "Only DELETE allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	var req struct {
 		PollID string `json:"poll_id"`
 	}
